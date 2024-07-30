@@ -7,13 +7,8 @@ from io import StringIO
 app = func.FunctionApp()
 
 @app.schedule(schedule="0 30 16 * * 1-5", arg_name="myTimer", run_on_startup=True,
-              use_monitor=False)  
-def timer_trigger_ADPHours(myTimer: func.TimerRequest) -> None:
-    """
-    This time trigger Azure Function will run at 4:30pm EST every weekday to sync hours from ADP ftp to Blob Storage then update table in SQL
-    Azure SQL Database: "dbo.SPAppCatalogArchive"   Table (dbo.ADPHours)
-    Axure Blob Storage Container: "adp-hours"    Blob (TimeandReportingHours1.yymmddhhmmss.csv)
-    """
+              use_monitor=False) 
+def timer_trigger_adphours(myTimer: func.TimerRequest) -> None:
     if myTimer.past_due:
         logging.info('The timer is past due!')
 
