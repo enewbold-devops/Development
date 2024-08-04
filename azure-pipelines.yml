@@ -11,7 +11,7 @@ variables:
   azureSubscription: 'e5a7a97e-ebec-4036-adac-c6119cf130ca'
 
   # Function app name
-  functionAppName: 'azfn-enewbold'
+  functionAppName: 'azfnenewbold'
 
   # Agent VM image name
   vmImageName: 'ubuntu-latest'
@@ -39,9 +39,9 @@ stages:
       displayName: 'Build extensions'
 
     - task: UsePythonVersion@0
-      displayName: 'Use Python 3.6'
+      displayName: 'Use Python 3.9'
       inputs:
-        versionSpec: 3.6 # Functions V2 supports Python 3.6 as of today
+        versionSpec: 3.9.0 # Functions V2 supports Python 3.6 as of today
 
     - bash: |
         pip install --target="./.python_packages/lib/site-packages" -r ./requirements.txt
