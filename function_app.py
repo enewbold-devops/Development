@@ -1,7 +1,7 @@
 import logging
 import azure.functions as func
-import azurestoragejts
-import adpftp
+from . import azurestoragejts
+from . import adpftp
 
 app = func.FunctionApp()
 
@@ -13,13 +13,14 @@ def timer_trigger_adpftp(myTimer: func.TimerRequest) -> None:
 
     logging.info('Python timer trigger function executed.')
 
-    adp = azurestoragejts.ADPConnect()
+    adp = adpftp.ADPConnect()
     date_now = adp.formatted_date()
     dir_files = adp.listFileDir()
 
     for filename in dir_files:
         print(filename)
         if (date_now in filename) and ("TimeandAttendancebyJobCostReport" in filename):
+
             jts = adpftp.JTSDatalake()
 
             fileStream = adp.downloadFile(filename)
@@ -34,7 +35,8 @@ def timer_trigger_adpftp(myTimer: func.TimerRequest) -> None:
             #spark_adphours_df = spark.createDataFrame(timereport_df)
         
         elif (date_now in filename) and ("ManagertoStaffRelationship" in filename):
-            jts = adpftp.JTSDatalake()
+
+            jts = azurestoragejts.JTSDatalake()
 
             fileStream = adp.downloadFile(filename)
             mimeType = filename.split(".")
