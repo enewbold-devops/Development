@@ -21,7 +21,7 @@ def timer_trigger_adpftp(myTimer: func.TimerRequest) -> None:
         print(filename)
         if (date_now in filename) and ("TimeandAttendancebyJobCostReport" in filename):
 
-            jts = adpftp.JTSDatalake()
+            jts = azurestoragejts.JTSDatalake()
 
             fileStream = adp.downloadFile(filename)
             mimeType = filename.split(".")
