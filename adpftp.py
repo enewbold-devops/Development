@@ -25,8 +25,8 @@ class ADPConnect:
         """
         now_date = datetime.datetime.now()
         formatted_now = str(now_date.strftime("%m-%d-%y"))
-        #formatted_now1 = formatted_now.replace("-","").replace(":","").replace(" ","")
-        formatted_now1 = "072624"
+        formatted_now1 = formatted_now.replace("-","").replace(":","").replace(" ","")
+        #formatted_now1 = "072624"
         return formatted_now1
     
     def listFileDir(self) -> list:

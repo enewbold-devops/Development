@@ -50,6 +50,11 @@ class JTSDatalake:
             blob_client.upload_blob(fileblob.getvalue(), blob_type="BlockBlob", overwrite=True)
 
 
+# Azure SQL Managed Identities for Azure SQL Binding sin Azure Functions
+# https://learn.microsoft.com/en-us/azure/azure-functions/functions-identity-access-azure-sql-with-managed-identity
+
+# Belows uses Azure SQL client SDKs with user/passwd and connections strings as env variables
+
 """class JTSAzureSQL:
     def __init__(self):
         self._conn = {
