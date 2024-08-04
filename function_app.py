@@ -1,7 +1,7 @@
 import logging
 import azure.functions as func
-from . import azurestoragejts
-from . import adpftp
+import azurestoragejts
+import adpftp
 
 app = func.FunctionApp()
 
