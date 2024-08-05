@@ -19,15 +19,31 @@ class JTSDatalake:
         self._blobcont = os.getenv("AZURE_BLOB_CONTAINER")
         self._accesskey = os.getenv("AZURE_BLOB_ACCESSKEY")
 
-    def downloadFileBlob(self, adpChoice, date, isArchive) -> io.StringIO:
+    def downloadADPBlob(self, adpChoice) -> pd.DataFrame:
         """
         Method for downlaoding a blob from the JTS ADP storage container
-        @adpChoice = "hours" | "payschedule" | "org"
+        @adpChoice = "hours" | "payrollschedule" | "org"
         @date = "mmddyy" #file archive date to return blob through a filestream if @isArchive = true
         @isArchive = true | false  #file blob from archive directory and @date to get daily archive dump
 
         """
-        pass
+        account_url = f"https://{self._blobacct}.blob.core.windows.net"
+
+        blob_service_client = BlobServiceClient(account_url, credential=self._accesskey)
+
+        if adpChoice == "hours":
+            blob_client = blob_service_client.get_blob_client(container="adp-hours", blob=f"adp-{adpChoice}.csv")
+        elif adpChoice == "payrollschedule":
+            blob_client = blob_service_client.get_blob_client(container="adp-hours", blob=f"adp-{adpChoice}.csv")
+        elif adpChoice == "org":
+            blob_client = blob_service_client.get_blob_client(container="adp-hours", blob=f"adp-{adpChoice}.csv")
+        else:
+            return pd.DataFrame() #blank dataframe
+        
+        blob_data = blob_client.download_blob().content_as_text()
+
+        return pd.read_csv(io.StringIO(blob_data))
+        
         
     def uploadFileBlob(self, fileblob, fileblobname: str, isPath: bool):
         """
@@ -48,38 +64,3 @@ class JTSDatalake:
             container_client = blob_service_client.get_container_client(self._blobcont)
             blob_client = container_client.get_blob_client(fileblobname)
             blob_client.upload_blob(fileblob.getvalue(), blob_type="BlockBlob", overwrite=True)
-
-
-# Azure SQL Managed Identities for Azure SQL Binding sin Azure Functions
-# https://learn.microsoft.com/en-us/azure/azure-functions/functions-identity-access-azure-sql-with-managed-identity
-
-# Belows uses Azure SQL client SDKs with user/passwd and connections strings as env variables
-
-"""class JTSAzureSQL:
-    def __init__(self):
-        self._conn = {
-            "database_type":"mssql+pyodbc",
-            "driver": "ODBC Driver 17 for SQL Server",
-            "server": os.getenv("AZURE_SQL"),
-            "user": os.getenv("AZURE_SQL_LOGIN"),
-            "password": os.getenv("AZURE_SQL_PASSWD"),
-            "database": 'SPAppCatalogArchive'
-        }
-        self._table = "ADPHoursArchive"
-        
-    def execQuery(self, df):
-        
-        engine = create_engine(
-            f"{self._conn.database_type}://{self._conn.user}:{self._conn.password}@{self._conn.server}/{self._conn.database}?driver={self._conn.driver}"
-        )
-
-        with engine.connect() as azsql:
-            try:
-                df.to_sql(self._table, engine, if_exists='append', index=False)
-                print(f"ADP hours inserted suscessfully in dbo.{self._table}")
-
-                result = azsql.execute(f"SELECT Count(*) FROM dbo.{self._table} Where CreatedOn = getdate()")
-                for row in result:
-                    print(row)
-            except:
-                print("There was an error inserting the data")"""

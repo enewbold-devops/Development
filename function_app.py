@@ -1,9 +1,15 @@
+import os
 import logging
+import json
 import azure.functions as func
+from azure.functions.decorators.core import DataType
+from datetime import datetime, timedelta
 import azurestoragejts
 import adpftp
 
 app = func.FunctionApp()
+
+##############################    ADP FTP Extract Function    #########################################
 
 @app.schedule(schedule="0 30 20 * * 1-5", arg_name="myTimer", run_on_startup=True,
               use_monitor=False) 
@@ -30,7 +36,7 @@ def timer_trigger_adpftp(myTimer: func.TimerRequest) -> None:
 
             fileStream = adp.downloadFile(filename)
             mimeType = filename.split(".")
-            fileStreamName = f"adp-hours-archive/2024/adp-hours-{date_now}.{mimeType[-1]}"
+            fileStreamName = f"adp-hours-archive/{datetime.now().year}/adp-hours-{date_now}.{mimeType[-1]}"
 
             jts.uploadFileBlob(fileStream, fileStreamName, isPath=False)
 
@@ -45,7 +51,7 @@ def timer_trigger_adpftp(myTimer: func.TimerRequest) -> None:
 
             fileStream = adp.downloadFile(filename)
             mimeType = filename.split(".")
-            fileStreamName = f"adp-org-archive/2024/adp-org-{date_now}.{mimeType[-1]}"
+            fileStreamName = f"adp-org-archive/{datetime.now().year}/adp-org-{date_now}.{mimeType[-1]}"
 
             jts.uploadFileBlob(fileStream, fileStreamName, isPath=False)
 
@@ -55,9 +61,16 @@ def timer_trigger_adpftp(myTimer: func.TimerRequest) -> None:
             #spark_adporg_df = spark.createDataFrame(orgreport_df)
 
 
+
+##############################    SQL Insert Function      #########################################
+
+@app.function_name(name="timer_trigger_adpsql")
 @app.schedule(schedule="0 0 21 * * 1-5", arg_name="mySQLTimer", run_on_startup=True,
               use_monitor=False)
-def timer_trigger_adpsql(mySQLTimer: func.TimerRequest) -> None:
+@app.sql_output(arg_name="SQLHoursArchive",
+                command_text="[dbo].[ADPHoursArchive]",
+                connection_string_setting="AZURE_SQL_CONNECT_STRING")
+def timer_trigger_adpsql(mySQLTimer: func.TimerRequest, SQLHoursArchive: func.Out[func.SqlRowList]) -> None:
     """
     Azure Function: timer trigger running every weekeday at 9:00PM EAST-US
     1) This process reads adp hours from the business Azure Blob storage container "adp-hours".
@@ -69,3 +82,21 @@ def timer_trigger_adpsql(mySQLTimer: func.TimerRequest) -> None:
         logging.info('The timer is past due!')
 
     logging.info('Python timer trigger function executed.')
+
+    jts = azurestoragejts.JTSDatalake()
+
+    payroll_df = jts.downloadADPBlob("payrollschedule") # get current payroll schedule
+
+    for period_end in payroll_df["Period End"]:
+        end_date = datetime.strptime(period_end, "%m/%d/%y")
+        #evaluate start of payperiod from end date
+        start_date = end_date - timedelta(days= int(os.getenv("ADP_PAYROLL_DAY_CNT"))) 
+
+        #check if current date is within the current payperiod
+        is_between = start_date <= datetime.datetime.now() <= end_date
+
+        if is_between:
+            timereport_df = jts.downloadADPBlob("hours") #get the current adp-hours.csv into a dataframe
+            current_timereport_df =  timereport_df[(timereport_df['Date'] >= start_date) & (timereport_df['Date'] <= end_date)]
+
+    
