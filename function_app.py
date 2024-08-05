@@ -71,7 +71,7 @@ def timer_trigger_adpftp(myADPTimer: func.TimerRequest) -> None:
 @app.sql_output(arg_name="SQLHoursArchive",
                 command_text="[dbo].[ADPHoursArchive]",
                 connection_string_setting="AZURE_SQL_CONNECT_STRING")
-def timer_trigger_adpsql(mySQLTimer: func.TimerRequest, SQLHoursArchive: func.Out[func.SqlRowList]) -> None:
+def timer_trigger_adpsql(mySQLTimer: func.TimerRequest, SQLHoursArchive: func.Out[func.SqlRow]) -> None:
     """
     Azure Function: timer trigger running every weekeday at 9:00PM EAST-US
     1) This process reads adp hours from the business Azure Blob storage container "adp-hours".
