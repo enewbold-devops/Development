@@ -112,6 +112,8 @@ def timer_trigger_adpsql(mySQLTimer: func.TimerRequest, SQLHoursArchive: func.Ou
 
             adphours_load =  payperiod_hours_df.to_json(orient="records", indent=4)
 
-            rows = func.SqlRowList(map(lambda row: func.SqlRow.from_dict(row), adphours_load))
+            adphours_list = json.loads(adphours_load)
+
+            rows = func.SqlRowList(map(lambda row: func.SqlRow.from_dict(row), adphours_list))
 
             SQLHoursArchive.set(rows)
