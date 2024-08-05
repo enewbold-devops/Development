@@ -6,9 +6,12 @@ __pycache__/
 # C extensions
 *.so
 
-#main branch build/deploy pipelines
+# main branch build/deploy pipelines
 azure-pipelines.yml
 azure-pipelines.yaml
+
+# Jupyter Notebook for smoke testing
+smoketest.ipynb
 
 # Distribution / packaging
 .Python

@@ -19,12 +19,10 @@ class JTSDatalake:
         self._blobcont = os.getenv("AZURE_BLOB_CONTAINER")
         self._accesskey = os.getenv("AZURE_BLOB_ACCESSKEY")
 
-    def downloadADPBlob(self, adpChoice) -> pd.DataFrame:
+    def downloadADPBlob(self, adpChoice: str) -> pd.DataFrame:
         """
         Method for downlaoding a blob from the JTS ADP storage container
         @adpChoice = "hours" | "payrollschedule" | "org"
-        @date = "mmddyy" #file archive date to return blob through a filestream if @isArchive = true
-        @isArchive = true | false  #file blob from archive directory and @date to get daily archive dump
 
         """
         account_url = f"https://{self._blobacct}.blob.core.windows.net"

@@ -3,9 +3,10 @@ import logging
 import json
 import azure.functions as func
 from azure.functions.decorators.core import DataType
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 import azurestoragejts
 import adpftp
+import pandas as pd
 
 app = func.FunctionApp()
 
@@ -85,18 +86,27 @@ def timer_trigger_adpsql(mySQLTimer: func.TimerRequest, SQLHoursArchive: func.Ou
 
     jts = azurestoragejts.JTSDatalake()
 
-    payroll_df = jts.downloadADPBlob("payrollschedule") # get current payroll schedule
+    # Get current payroll schedule
+    payroll_df = jts.downloadADPBlob("payrollschedule") 
+
+    payperiod_hours_df = pd.DataFrame()
 
     for period_end in payroll_df["Period End"]:
+
+        # Evaluate start of payperiod from end date
         end_date = datetime.strptime(period_end, "%m/%d/%y")
-        #evaluate start of payperiod from end date
         start_date = end_date - timedelta(days= int(os.getenv("ADP_PAYROLL_DAY_CNT"))) 
 
-        #check if current date is within the current payperiod
-        is_between = start_date <= datetime.datetime.now() <= end_date
+        # Check if current date is within the current payperiod
+        is_between = start_date <= date.today() <= end_date
 
         if is_between:
             timereport_df = jts.downloadADPBlob("hours") #get the current adp-hours.csv into a dataframe
-            current_timereport_df =  timereport_df[(timereport_df['Date'] >= start_date) & (timereport_df['Date'] <= end_date)]
+            payperiod_hours_df =  timereport_df[(timereport_df['Date'] >= start_date) & (timereport_df['Date'] <= end_date)]
 
-    
+
+    adphours_load =  payperiod_hours_df.to_json(orient="table", indent=4)
+
+    rows = func.SqlRowList(map(lambda row: func.SqlRow.from_dict(row), adphours_load))
+
+    SQLHoursArchive.set(rows)
