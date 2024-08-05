@@ -12,15 +12,15 @@ app = func.FunctionApp()
 
 ##############################    ADP FTP Extract Function    #########################################
 
-@app.schedule(schedule="0 30 20 * * 1-5", arg_name="myTimer", run_on_startup=True,
+@app.schedule(schedule="0 30 20 * * 1-5", arg_name="myADPTimer", run_on_startup=True,
               use_monitor=False) 
-def timer_trigger_adpftp(myTimer: func.TimerRequest) -> None:
+def timer_trigger_adpftp(myADPTimer: func.TimerRequest) -> None:
     """
     Azure Function: timer trigger running every weekeday at 8:30PM EAST-US
     This process reads adp hours, organzation csb file from the ADP FTP Server (IBM Sterling)
     then syncs the file into the business Azure Blob storage container "adp-hours"
     """
-    if myTimer.past_due:
+    if myADPTimer.past_due:
         logging.info('The timer is past due!')
 
     logging.info('Python timer trigger function executed.')
@@ -93,20 +93,25 @@ def timer_trigger_adpsql(mySQLTimer: func.TimerRequest, SQLHoursArchive: func.Ou
 
     for period_end in payroll_df["Period End"]:
 
-        # Evaluate start of payperiod from end date
-        end_date = datetime.strptime(period_end, "%m/%d/%y")
-        start_date = end_date - timedelta(days= int(os.getenv("ADP_PAYROLL_DAY_CNT"))) 
+        # Evaluate start & end of the current payperiod
+        payroll_end_date = datetime.strptime(period_end, "%m/%d/%Y")
+        payroll_start_date = payroll_end_date - timedelta(days= int(os.getenv("ADP_PAYROLL_DAY_CNT"))) 
 
         # Check if current date is within the current payperiod
-        is_between = start_date <= date.today() <= end_date
+        is_between = payroll_start_date <= datetime.now() <= payroll_end_date
 
         if is_between:
             timereport_df = jts.downloadADPBlob("hours") #get the current adp-hours.csv into a dataframe
-            payperiod_hours_df =  timereport_df[(timereport_df['Date'] >= start_date) & (timereport_df['Date'] <= end_date)]
+            timereport_df['Date'] = pd.to_datetime(timereport_df['Date'], format='%m/%d/%Y')
+            payperiod_hours_df =  timereport_df[(timereport_df['Date'] >= payroll_start_date) & (timereport_df['Date'] <= payroll_end_date)]
 
+            payperiod_hours_df.drop(columns=["Employment Profile - Effective Date"], inplace=True)
+            payperiod_hours_df["Sub-Project"].fillna("None", inplace=True)
+            payperiod_hours_df["Date"] = payperiod_hours_df["Date"].astype(str)
+            payperiod_hours_df.rename(columns={"Sub-Project":"Sub_Project", "ID Number": "ID_Number"}, inplace=True)
 
-    adphours_load =  payperiod_hours_df.to_json(orient="table", indent=4)
+            adphours_load =  payperiod_hours_df.to_json(orient="records", indent=4)
 
-    rows = func.SqlRowList(map(lambda row: func.SqlRow.from_dict(row), adphours_load))
+            rows = func.SqlRowList(map(lambda row: func.SqlRow.from_dict(row), adphours_load))
 
-    SQLHoursArchive.set(rows)
+            SQLHoursArchive.set(rows)
