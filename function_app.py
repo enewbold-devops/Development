@@ -108,17 +108,26 @@ def timer_trigger_adpsql(mySQLTimer: func.TimerRequest, SQLProcedureRemoveADPHrs
 
         #print("Replaced rows for payperiod =>." + json.dump(resp))
 
-        timereport_df = jts.downloadADPBlob("hours") #get the current adp-hours.csv into a dataframe
+        # Get the current adp-hours.csv into a dataframe
+        timereport_df = jts.downloadADPBlob("hours") 
         timereport_df['Date'] = pd.to_datetime(timereport_df['Date'], format='%m/%d/%Y')
         payperiod_hours_df =  timereport_df[(timereport_df['Date'] >= start_date) & (timereport_df['Date'] <= end_date)]
-        payperiod_hours_df["Sub-Project"].fillna("None", inplace=True)
+
+        # Replace NULL values in dataframe
+        payperiod_hours_df["Department"].fillna("-", inplace=True)
+        payperiod_hours_df["Client"].fillna("-", inplace=True)
+        payperiod_hours_df["Project"].fillna("-", inplace=True)
+        payperiod_hours_df["Sub-Project"].fillna("-", inplace=True)
+        payperiod_hours_df["Hours"].fillna(0, inplace=True)
+
         payperiod_hours_df["Date"] = payperiod_hours_df["Date"].astype(str)
+        payperiod_hours_df["Date"].fillna(payperiod_dates[0], inplace=True)
+
+        # Rename columns to match func.SQLRowList schema
         payperiod_hours_df.rename(columns={"Sub-Project":"Sub_Project", "ID Number": "ID_Number"}, inplace=True)
 
         adphours_load =  payperiod_hours_df.to_json(orient="records", indent=4)
-
         adphours_list = json.loads(adphours_load)
-
         rows = func.SqlRowList(map(lambda row: func.SqlRow.from_dict(row), adphours_list))
-
+        
         SQLHoursArchive.set(rows)
