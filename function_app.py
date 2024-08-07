@@ -6,13 +6,17 @@ from azure.functions.decorators.core import DataType
 from datetime import datetime, date, timedelta
 import azurestoragejts
 import adpftp
+import payperiod as pp
 import pandas as pd
+
+
+payperiod_dates = pp.currentPayperiod()
 
 app = func.FunctionApp()
 
 ##############################    ADP FTP Extract Function    #########################################
 
-@app.schedule(schedule="0 30 20 * * 1-5", arg_name="myADPTimer", run_on_startup=True,
+@app.schedule(schedule="0 30 20 * * 1-5", arg_name="myADPTimer", run_on_startup=False,
               use_monitor=False) 
 def timer_trigger_adpftp(myADPTimer: func.TimerRequest) -> None:
     """
@@ -26,52 +30,59 @@ def timer_trigger_adpftp(myADPTimer: func.TimerRequest) -> None:
     logging.info('Python timer trigger function executed.')
 
     adp = adpftp.ADPConnect()
+    jts = azurestoragejts.JTSDatalake()
+
     date_now = adp.formatted_date()
     dir_files = adp.listFileDir()
 
-    for filename in dir_files:
-        print(filename)
-        if (date_now in filename) and ("TimeandAttendancebyJobCostReport1" in filename):
+    reportlist = [
+        {
+            "reporttype": "TimeandAttendanceByJobCostReport1",
+            "blobprefix": "adp-hours"
+        },
+        {
+            "reporttype": "ManagertoStaffRelationship",
+            "blobprefix": "adp-org"
+        }
+    ]
 
-            jts = azurestoragejts.JTSDatalake()
+    print(dir_files)
+    
+    for report in reportlist:
+        for filename in dir_files:
 
-            fileStream = adp.downloadFile(filename)
-            mimeType = filename.split(".")
-            fileStreamName = f"adp-hours-archive/{datetime.now().year}/adp-hours-{date_now}.{mimeType[-1]}"
+            report_type= report["reporttype"]
+            blobprefix = report["blobprefix"]
 
-            jts.uploadFileBlob(fileStream, fileStreamName, isPath=False)
+            if (date_now in filename) and (report_type in filename):
 
-            fileStreamName = f"adp-hours.{mimeType[-1]}"
+                fileStream = adp.downloadFile(filename)
+                mimeType = filename.split(".")
 
-            jts.uploadFileBlob(fileStream, fileStreamName, isPath=False)
-            #spark_adphours_df = spark.createDataFrame(timereport_df)
-        
-        elif (date_now in filename) and ("ManagertoStaffRelationship" in filename):
+                fileStreamName = f"{blobprefix}-archive/{datetime.now().year}/{blobprefix}-{date_now}.{mimeType[-1]}"
+                jts.uploadFileBlob(fileStream, fileStreamName, isPath=False)
 
-            jts = azurestoragejts.JTSDatalake()
-
-            fileStream = adp.downloadFile(filename)
-            mimeType = filename.split(".")
-            fileStreamName = f"adp-org-archive/{datetime.now().year}/adp-org-{date_now}.{mimeType[-1]}"
-
-            jts.uploadFileBlob(fileStream, fileStreamName, isPath=False)
-
-            fileStreamName = f"adp-org.{mimeType[-1]}"
-
-            jts.uploadFileBlob(fileStream, fileStreamName, isPath=False)
-            #spark_adporg_df = spark.createDataFrame(orgreport_df)
+                fileStreamName = f"{blobprefix}.{mimeType[-1]}"
+                jts.uploadFileBlob(fileStream, fileStreamName, isPath=False)
 
 
 
-##############################    SQL Insert Function      #########################################
+##############################    SQL PayPerion Hours Insert Function      #########################################
+
 
 @app.function_name(name="timer_trigger_adpsql")
-@app.schedule(schedule="0 0 21 * * 1-5", arg_name="mySQLTimer", run_on_startup=True,
+@app.schedule(schedule="0 0 21 * * 1-5", arg_name="mySQLTimer", run_on_startup=False,
               use_monitor=False)
+@app.sql_input(arg_name="SQLProcedureRemoveADPHrs",
+               command_text="[dbo].[RemoveADPCurrentPayperiodHours]",
+               command_type="StoredProcedure",
+               parameters=f"@StartDate={payperiod_dates[0]},@EndDate={payperiod_dates[1]}",
+               connection_string_setting="AZURE_SQL_CONNECT_STRING"
+               )
 @app.sql_output(arg_name="SQLHoursArchive",
                 command_text="[dbo].[ADPHoursArchive]",
                 connection_string_setting="AZURE_SQL_CONNECT_STRING")
-def timer_trigger_adpsql(mySQLTimer: func.TimerRequest, SQLHoursArchive: func.Out[func.SqlRow]) -> None:
+def timer_trigger_adpsql(mySQLTimer: func.TimerRequest, SQLProcedureRemoveADPHrs: func.SqlRowList, SQLHoursArchive: func.Out[func.SqlRow]) -> None:
     """
     Azure Function: timer trigger running every weekeday at 9:00PM EAST-US
     1) This process reads adp hours from the business Azure Blob storage container "adp-hours".
@@ -86,34 +97,28 @@ def timer_trigger_adpsql(mySQLTimer: func.TimerRequest, SQLHoursArchive: func.Ou
 
     jts = azurestoragejts.JTSDatalake()
 
-    # Get current payroll schedule
-    payroll_df = jts.downloadADPBlob("payrollschedule") 
-
     payperiod_hours_df = pd.DataFrame()
 
-    for period_end in payroll_df["Period End"]:
+    start_date = datetime.strptime(payperiod_dates[0],"%Y-%m-%d")
+    end_date = datetime.strptime(payperiod_dates[1],"%Y-%m-%d")
 
-        # Evaluate start & end of the current payperiod
-        payroll_end_date = datetime.strptime(period_end, "%m/%d/%Y")
-        payroll_start_date = payroll_end_date - timedelta(days= int(os.getenv("ADP_PAYROLL_DAY_CNT"))) 
+    if start_date <= datetime.now() <= end_date:
 
-        # Check if current date is within the current payperiod
-        is_between = payroll_start_date <= datetime.now() <= payroll_end_date
+        resp = list(map(lambda r: json.loads(r.to_json()), SQLProcedureRemoveADPHrs))
 
-        if is_between:
-            timereport_df = jts.downloadADPBlob("hours") #get the current adp-hours.csv into a dataframe
-            timereport_df['Date'] = pd.to_datetime(timereport_df['Date'], format='%m/%d/%Y')
-            payperiod_hours_df =  timereport_df[(timereport_df['Date'] >= payroll_start_date) & (timereport_df['Date'] <= payroll_end_date)]
+        #print("Replaced rows for payperiod =>." + json.dump(resp))
 
-            payperiod_hours_df.drop(columns=["Employment Profile - Effective Date"], inplace=True)
-            payperiod_hours_df["Sub-Project"].fillna("None", inplace=True)
-            payperiod_hours_df["Date"] = payperiod_hours_df["Date"].astype(str)
-            payperiod_hours_df.rename(columns={"Sub-Project":"Sub_Project", "ID Number": "ID_Number"}, inplace=True)
+        timereport_df = jts.downloadADPBlob("hours") #get the current adp-hours.csv into a dataframe
+        timereport_df['Date'] = pd.to_datetime(timereport_df['Date'], format='%m/%d/%Y')
+        payperiod_hours_df =  timereport_df[(timereport_df['Date'] >= start_date) & (timereport_df['Date'] <= end_date)]
+        payperiod_hours_df["Sub-Project"].fillna("None", inplace=True)
+        payperiod_hours_df["Date"] = payperiod_hours_df["Date"].astype(str)
+        payperiod_hours_df.rename(columns={"Sub-Project":"Sub_Project", "ID Number": "ID_Number"}, inplace=True)
 
-            adphours_load =  payperiod_hours_df.to_json(orient="records", indent=4)
+        adphours_load =  payperiod_hours_df.to_json(orient="records", indent=4)
 
-            adphours_list = json.loads(adphours_load)
+        adphours_list = json.loads(adphours_load)
 
-            rows = func.SqlRowList(map(lambda row: func.SqlRow.from_dict(row), adphours_list))
+        rows = func.SqlRowList(map(lambda row: func.SqlRow.from_dict(row), adphours_list))
 
-            SQLHoursArchive.set(rows)
+        SQLHoursArchive.set(rows)
