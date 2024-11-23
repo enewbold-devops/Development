@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Case & Client Search API</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link href="/scripts/src/bootstrap-5.2.3-dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="/scripts/src/bootstrap-5.2.3-dist/js/bootstrap.bundle.min.js"></script>
+
+    <link rel="stylesheet" href="/scripts/scss/app.scss">
+
+    <script src="/scripts/js/jquery-3.6.0.min.js"></script>
+
+    <script src="/scripts/src/index.js"></script>
+
+    <style>
+        .btnCaseSearch {
+            width: 100%;
+            display: block;
+            text-align: center;
+            margin: auto;
+
+        }
+
+        #section1 {
+            vertical-align: middle;
+        }
+
+        #section2 {
+            display: none;
+        }
+
+        #section3 {
+            display: none;
+        }
+    </style>
+
+</head>
+
+<body>
+
+
+
+    <div style="height:75px; background-image: url('/scripts/bannerImage1.png');">
+
+    </div>
+
+    <div class="container" id="section1">
+        <br><br><br><br><br>
+        <div class="row">
+            <div class="col-sm-12">
+                <button type="button" class="btn btn-dark btn-lg btnCaseSearch" courtCode="PTY">PARTY NAME
+                    SEARCH</button>
+            </div>
+        </div>
+        <br>
+        <div class="row">
+            <div class="col-sm-4" style="padding: 10px;">
+                <button type="button" class="btn btn-dark btn-lg btnCaseSearch" courtCode="CV">CIVIL</button>
+            </div>
+            <div class="col-sm-4" style="padding: 10px;">
+                <button type="button" class="btn btn-dark btn-lg btnCaseSearch" courtCode="FEL">FELONY</button>
+            </div>
+            <div class="col-sm-4" style="padding: 10px;">
+                <button type="button" class="btn btn-dark btn-lg btnCaseSearch" courtCode="TM">MISD</button>
+            </div>
+        </div>
+    </div>
+    <br>
+
+    <div class="container" id="section3">
+        <br>
+        <h3>Select Date(s) Case Filed</h3>
+        <br>
+        <div class="row">
+            <div class="col-sm-6">
+                <label for="beginFileDate" class="form-label">Case Date Start</label>
+                <input type="date" class="form-control" id="beginFileDate">
+            </div>
+            <div class="col-sm-6">
+                <label for="endFileDate" class="form-label">Case Date End</label>
+                <input type="date" class="form-control" id="endFileDate">
+            </div>
+        </div>
+        <br>
+        <button id="submitDateRange" type="button" class="btn btn-dark">Search Cases</button>
+
+        <div id="searchNameError1" class="alert alert-danger" role="alert" style="display: none;">
+            Your search had no results for the dates selected..
+        </div>
+
+        <br />
+        <div id="searchSysError1" class="alert alert-danger" role="alert" style="display: none;">
+            There is a system error please try again, Thankyou...
+        </div>
+
+    </div>
+    <br>
+    <div class="container" id="section2">
+        <br>
+        <h3>Search Party by Name</h3>
+        <br>
+        <div class="well well-sm">
+            <div class="row">
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="lname">Last Name:</label>
+                        <input type="text" class="form-control" id="lname">
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="fname">First Name:</label>
+                        <input type="text" class="form-control" id="fname">
+                    </div>
+                </div>
+            </div>
+            <br>
+            <button id="submitPartyName" type="button" class="btn btn-dark">Search Party Details</button>
+
+            <div id="searchNameError" class="alert alert-danger" role="alert" style="display: none;">
+                Your search had no results for that name..
+            </div>
+
+            <br />
+            <div id="searchSysError" class="alert alert-danger" role="alert" style="display: none;">
+                There is a system error please try again, Thankyou...
+            </div>
+
+        </div>
+    </div>
+
+    <br>
+
+    <div class="container" id="loadCaseDetailsTable" style="display: none;">
+        <br>
+        <div class="row">
+            <div class="col-sm-12">
+                <button type="button" onclick="location.href='/';" class="btn btn-dark btn-sm">New Search</button>
+            </div>
+        </div>
+        <br>
+        <h4>Case Search Results</h4>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Case #</th>
+                        <th>Filed Date</th>
+                        <th>Party Type</th>
+                        <th>Party Name</th>
+                        <th>Case Details</th>
+                        <th></th>
+
+                    </tr>
+                </thead>
+                <tbody id="loadCaseDetails">
+
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <div class="container">
+
+        <div class="modal fade" id="staticBackdrop" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
+            aria-labelledby="staticBackdropLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="staticBackdropLabel">Modal title</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="caseDetailModalBody">
+
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary">View Arrest BSO</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        var socket = io("/");
+    </script>
+
+</body>
+
+</html>
